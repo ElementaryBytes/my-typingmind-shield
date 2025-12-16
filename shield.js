@@ -1,15 +1,18 @@
-/* 🛡️ TYPINGMIND SECURE SHIELD v6.1 (Sanitized Input & Focus-Lock Copy) */
+/* 🛡️ TYPINGMIND SECURE SHIELD v7.0 (Precision Copy & Focus Lock) */
 (function() {
+    // 1. Force Clean Slate
     const oldContainer = document.getElementById('shield-container');
     if (oldContainer) oldContainer.remove();
 
-    console.log("🛡️ Shield v6.1 Online: Input Sanitization Active.");
+    console.log("🛡️ Shield v7.0 Online: Precision Focus Lock Active.");
     
     const STORAGE_KEY = "legal_shield_map";
     const PRIVATE_LIST_KEY = "shield_private_blacklist";
 
+    // Load Memory
     let map = new Map(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
     
+    /* ⚙️ CONFIGURATION */
     const privateKeywords = localStorage.getItem(PRIVATE_LIST_KEY) || "";
     const privateRule = privateKeywords ? {
         name: "Private Blacklist",
@@ -17,6 +20,7 @@
         prefix: "Entity" 
     } : null;
 
+    // Corporate Suffixes (Regex Safe)
     const corporateSuffixes = [
         "Inc\\.?", "Corp\\.?", "Ltd\\.?", "LLC", "L\\.L\\.C\\.?", 
         "GmbH", "AG", "KG", "SE", "S\\.A\\.?", "S\\.A\\.S\\.?", "S\\.r\\.l\\.?", 
@@ -27,6 +31,7 @@
         ...(privateRule ? [privateRule] : []),
         {
             name: "Corporate Entity",
+            // Consumes trailing dot if part of suffix (e.g. "Inc.")
             regex: new RegExp(`\\b([A-Z][a-zA-Z0-9&']+(?:\\s+[A-Z][a-zA-Z0-9&']+)*\\s+(?:${corporateSuffixes}))`, 'gi'),
             prefix: "Company"
         },
@@ -65,7 +70,10 @@
 
     function unmaskText(text) {
         let cleanText = text;
-        cleanText = cleanText.replace(/ 🔒/g, ""); // Remove artifacts
+        // 1. Remove Reader View Locks
+        cleanText = cleanText.replace(/ 🔒/g, ""); 
+        
+        // 2. Regex to find [Code_123] and swap back
         const aliasPattern = /\[(Client|Company|Entity|Email|Card|ID)_\d+\]/g;
         cleanText = cleanText.replace(aliasPattern, (match) => {
             if (map.has(match)) return map.get(match);
@@ -75,10 +83,8 @@
     }
 
     function handleSend(textarea) {
-        // 1. SANITIZE: Remove any "Reader View" artifacts (locks/real names) before processing
-        // This ensures we mask the RAW text, not the visual text
+        // Sanitize: remove any locks that accidentally got pasted into input
         let rawValue = textarea.value.replace(/ 🔒/g, "");
-        
         let result = maskText(rawValue);
         
         if (result.wasMasked) {
@@ -99,6 +105,7 @@
         }
     }
 
+    /* --- UI LOGIC --- */
     function initUI() {
         if (document.getElementById('shield-container')) return;
 
@@ -109,52 +116,44 @@
             display: flex; gap: 4px; z-index: 9999; 
             opacity: 0.3; transition: opacity 0.2s; 
             font-family: sans-serif;
-            background: rgba(0,0,0,0.5); padding: 4px; border-radius: 8px;
+            background: rgba(0,0,0,0.8); padding: 4px; border-radius: 8px;
         `;
         container.onmouseenter = () => container.style.opacity = "1";
         container.onmouseleave = () => container.style.opacity = "0.3";
 
-        // Shield Button (Click to Send)
+        // Shield Button
         let btn = document.createElement('div');
         btn.innerHTML = `🛡️`;
-        btn.title = "Shield Active";
+        btn.title = "Shield Active (Click to force send)";
         btn.style.cssText = `cursor: pointer; padding: 5px; font-size: 16px;`;
         
-        // Use mousedown to prevent focus loss issues
         btn.onmousedown = (e) => {
-            e.preventDefault();
+            e.preventDefault(); // Prevent focus loss
             let textarea = document.querySelector('textarea');
             if (textarea) handleSend(textarea);
         };
 
-        // Ghost Copy Button
+        // Precision Copy Button
         let copyBtn = document.createElement('div');
         copyBtn.innerHTML = `📋`;
         copyBtn.title = "Copy Selection (Unmasked)";
         copyBtn.style.cssText = `cursor: pointer; padding: 5px; font-size: 16px; border-left: 1px solid #555;`;
         
-        // Notification
         let notif = document.createElement('div');
-        notif.style.cssText = `position: absolute; bottom: 40px; right: 0; background: #222; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; opacity: 0; pointer-events: none; transition: opacity 0.2s; white-space: nowrap;`;
+        notif.style.cssText = `position: absolute; bottom: 40px; right: 0; background: #000; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; opacity: 0; pointer-events: none; transition: opacity 0.2s; white-space: nowrap;`;
         container.appendChild(notif);
 
-        // MOUSE DOWN EVENT: Grabs selection BEFORE click clears it
+        // MOUSEDOWN is key: It fires BEFORE the browser clears the selection
         copyBtn.onmousedown = async (e) => {
-            e.preventDefault();
+            e.preventDefault(); // STOP the button from stealing focus
             
-            // 1. Grab Highlighted Text IMMEDIATELY
+            // 1. Get Text (Should now be 100% accurate)
             let textToProcess = window.getSelection().toString();
-            
-            if (!textToProcess) {
-                // If no selection, check input box
-                let textarea = document.querySelector('textarea');
-                if (textarea && textarea.value) textToProcess = textarea.value;
-            }
 
-            // Fallback: Last AI message
+            // 2. Fallback only if EMPTY
             if (!textToProcess) {
-                let messages = document.querySelectorAll('[data-element-id="ai-message"]');
-                if (messages.length > 0) textToProcess = messages[messages.length - 1].innerText;
+                 let messages = document.querySelectorAll('[data-element-id="ai-message"]');
+                 if (messages.length > 0) textToProcess = messages[messages.length - 1].innerText;
             }
 
             if (textToProcess) {
@@ -162,7 +161,7 @@
                 try {
                     await navigator.clipboard.writeText(clean);
                     copyBtn.innerHTML = "✅";
-                    notif.innerText = `Copied Unmasked`;
+                    notif.innerText = `Copied: "${clean.substring(0,15)}..."`;
                     notif.style.opacity = "1";
                     setTimeout(() => notif.style.opacity = "0", 2000);
                 } catch (err) { copyBtn.innerHTML = "❌"; }
@@ -172,17 +171,18 @@
             setTimeout(() => { copyBtn.innerHTML = "📋"; }, 1000);
         };
 
-        // Reader View
+        // Reader View (Visual Unmasker)
         setInterval(() => {
             let walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
             let node;
             while (node = walker.nextNode()) {
                 let txt = node.nodeValue;
+                // Only touch nodes that have Aliases AND NO lock
                 if (txt && txt.includes("[") && txt.includes("]") && !txt.includes("🔒")) {
                     map.forEach((real, alias) => {
                         if (alias.startsWith("[") && txt.includes(alias)) {
-                            // Only unmask inside message bubbles or input, not in system areas
-                            if (node.parentElement && node.parentElement.tagName !== 'SCRIPT' && node.parentElement.tagName !== 'STYLE') {
+                            // Only unmask inside message bubbles (prevent UI breakage)
+                            if (node.parentElement && node.parentElement.closest('[data-element-id]')) {
                                 node.nodeValue = txt.split(alias).join(`${real} 🔒`);
                             }
                         }
