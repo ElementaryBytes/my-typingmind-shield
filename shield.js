@@ -1,18 +1,18 @@
-/* 🛡️ TYPINGMIND SECURE SHIELD v5.2 (Cache-Buster & Case Insensitive) */
+/* 🛡️ TYPINGMIND SECURE SHIELD v5.3 (Deep-Search Decoder) */
 (function() {
-    // 1. FORCE REMOVE OLD UI (Fixes the "Stale Button" issue)
+    // 1. Force Clean UI
     const oldContainer = document.getElementById('shield-container');
     if (oldContainer) oldContainer.remove();
-    
-    console.log("🛡️ Shield v5.2 Online: UI Reset & Logic Updated.");
+
+    console.log("🛡️ Shield v5.3 Online: Deep-Search Decoder Active.");
     
     const STORAGE_KEY = "legal_shield_map";
     const PRIVATE_LIST_KEY = "shield_private_blacklist";
 
-    // Initialize Memory
+    // Load Map
     let map = new Map(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
     
-    /* ⚙️ RULE CONFIGURATION */
+    // --- RULES SETUP (Unchanged) ---
     const privateKeywords = localStorage.getItem(PRIVATE_LIST_KEY) || "";
     const privateRule = privateKeywords ? {
         name: "Private Blacklist",
@@ -20,18 +20,16 @@
         prefix: "Entity" 
     } : null;
 
-    // Enhanced Suffix List
     const corporateSuffixes = [
         "Inc", "Corp", "Ltd", "LLC", "GmbH", "AG", "KG", "SE", 
         "S.A", "S.A.S", "S.r.l", "S.p.A", "B.V", "N.V", 
         "Pty Ltd", "Pty", "Co", "Company", "K.K", "G.K"
-    ].join("|").replace(/\./g, "\\."); // Escape dots automatically
+    ].join("|").replace(/\./g, "\\."); 
 
     const RULES = [
         ...(privateRule ? [privateRule] : []),
         {
             name: "Corporate Entity",
-            // Added 'i' flag for Case Insensitivity (Matches Gmbh, GMBH, GmbH)
             regex: new RegExp(`\\b([A-Z][a-zA-Z0-9&']+(?:\\s+[A-Z][a-zA-Z0-9&']+)*\\s+(?:${corporateSuffixes}))\\b`, 'gi'),
             prefix: "Company"
         },
@@ -44,7 +42,6 @@
     function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify([...map])); }
 
     function getAlias(text, prefix) {
-        // Normalize text trimming for lookup stability
         const key = text.trim();
         if (!map.has(key)) {
             let count = 0;
@@ -69,14 +66,26 @@
         return { text: newText, wasMasked: masked };
     }
 
+    // --- NEW: ROBUST UNMASKING LOGIC ---
     function unmaskText(text) {
         let cleanText = text;
-        map.forEach((realValue, alias) => {
-            if (alias.startsWith("[")) {
-                cleanText = cleanText.split(alias).join(realValue);
+        
+        // 1. Remove Visual Locks (The Reader View artifacts)
+        cleanText = cleanText.replace(/ 🔒/g, "");
+
+        // 2. Regex Search for ANY alias pattern like [Client_1] or [Company_50]
+        // This catches them even if they are inside markdown like **[Client_1]**
+        const aliasPattern = /\[(Client|Company|Entity|Email|Card|ID)_\d+\]/g;
+        
+        cleanText = cleanText.replace(aliasPattern, (match) => {
+            // Check if we have the Real Name for this Alias
+            if (map.has(match)) {
+                return map.get(match); // Return "Alpha GmbH"
             }
+            return match; // If unknown, leave it as [Client_X] so you know something is wrong
         });
-        return cleanText.replace(/ 🔒/g, "");
+
+        return cleanText;
     }
 
     function handleSend(textarea, mainBtn) {
@@ -100,8 +109,8 @@
         }
     }
 
+    /* --- UI LOGIC --- */
     function initUI() {
-        // Double check removal
         if (document.getElementById('shield-container')) document.getElementById('shield-container').remove();
 
         let container = document.createElement('div');
@@ -129,48 +138,58 @@
             if (textarea) handleSend(textarea);
         };
 
-        // Ghost Copy Button
+        // GHOST COPY BUTTON (DEEP SEARCH)
         let copyBtn = document.createElement('div');
         copyBtn.innerHTML = `📋`;
         copyBtn.title = "Copy Original (Auto-Fetch)";
         copyBtn.style.cssText = `cursor: pointer; padding: 5px; font-size: 16px; border-left: 1px solid #555; transition: transform 0.1s;`;
         
+        // Notification Bubble
+        let notif = document.createElement('div');
+        notif.style.cssText = `
+            position: absolute; bottom: 40px; right: 0; background: #333; color: #fff; 
+            padding: 5px 10px; border-radius: 4px; font-size: 12px; pointer-events: none;
+            opacity: 0; transition: opacity 0.2s; white-space: nowrap;
+        `;
+        container.appendChild(notif);
+
         copyBtn.onclick = async (e) => {
             e.preventDefault();
             copyBtn.style.transform = "scale(0.9)";
             
-            // Priority: Selection -> Last AI Response -> Input Box
+            // 1. Grab Text (Selection or Last AI Message)
             let textToProcess = window.getSelection().toString();
-            
             if (!textToProcess) {
                 let messages = document.querySelectorAll('[data-element-id="ai-message"]');
                 if (messages.length > 0) {
                     textToProcess = messages[messages.length - 1].innerText;
-                    console.log("👻 Shield: Auto-fetched last AI message.");
-                } else {
-                    let textarea = document.querySelector('textarea');
-                    if (textarea) textToProcess = textarea.value;
                 }
             }
 
             if (textToProcess) {
+                // 2. Decode
                 let clean = unmaskText(textToProcess);
-                console.log("👻 Shield Output Preview:", clean.substring(0, 50) + "..."); // Debug Log
                 
                 try {
                     await navigator.clipboard.writeText(clean);
                     copyBtn.innerHTML = "✅"; 
+                    
+                    // Show Notification
+                    notif.innerText = `Copied: "${clean.substring(0, 20)}..."`;
+                    notif.style.opacity = "1";
+                    setTimeout(() => notif.style.opacity = "0", 2000);
+
                 } catch (err) {
                     console.error("Shield Copy Error:", err);
                     copyBtn.innerHTML = "❌";
                 }
             } else {
-                copyBtn.innerHTML = "⚠️"; // Nothing to copy
+                copyBtn.innerHTML = "⚠️"; // No text found
             }
             setTimeout(() => { copyBtn.innerHTML = "📋"; copyBtn.style.transform = "scale(1)"; }, 1500);
         };
 
-        // Reader View Unmasker
+        // Reader View
         setInterval(() => {
             let walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
             let node;
