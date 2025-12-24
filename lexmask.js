@@ -1,25 +1,26 @@
-/* ⚖️ LexMask v4.0 (Plugin Ready)
- * - Accepts private secrets from TypingMind Plugin System
- * - Stream Safe & UI Safe
+/* ⚖️ LexMask v4.0 (Settings Edition)
+ * - Adds a Settings Gear ⚙️ to the UI
+ * - Saves secrets privately in your browser (LocalStorage)
+ * - JSDelivr Compatible
  */
 
 (function() {
-    // --- 1. CONFIGURATION RECEIVER ---
-    // We look for a global variable set by the TypingMind Plugin
-    const PLUGIN_SECRETS = window.LEXMASK_PRIVATE_LIST || [];
-    
-    // --- 2. SETUP ---
+    // --- 1. SETUP & UTILS ---
     const OLD_CONTAINER_ID = 'lexmask-container';
     const existingContainer = document.getElementById(OLD_CONTAINER_ID);
     if (existingContainer) existingContainer.remove();
 
-    console.log(`⚖️ LexMask v4.0 Online. Loaded ${PLUGIN_SECRETS.length} private rules.`);
-    
-    const STORAGE_KEY = "lexmask_entity_map"; 
-    let entityMap = new Map(JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"));
+    const STORAGE_KEY_MAP = "lexmask_entity_map"; 
+    const STORAGE_KEY_SECRETS = "lexmask_secrets";
+
+    // Load Memory & Private Secrets
+    let entityMap = new Map(JSON.parse(localStorage.getItem(STORAGE_KEY_MAP) || "[]"));
+    let privateSecrets = (localStorage.getItem(STORAGE_KEY_SECRETS) || "").split(',').map(s => s.trim()).filter(s => s);
+
+    console.log(`⚖️ LexMask v4.0 Online. Loaded ${privateSecrets.length} private rules.`);
 
     function saveToMemory() { 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([...entityMap])); 
+        localStorage.setItem(STORAGE_KEY_MAP, JSON.stringify([...entityMap])); 
     }
 
     function getAlias(text, prefix) {
@@ -35,20 +36,20 @@
         return entityMap.get(key);
     }
 
-    // --- 3. NLP ENGINE ---
+    // --- 2. LOAD NLP ENGINE ---
     let nlpReady = false;
     const script = document.createElement('script');
     script.src = "https://unpkg.com/compromise@latest/builds/compromise.min.js";
     script.onload = () => { nlpReady = true; };
     document.head.appendChild(script);
 
-    // --- 4. MASKING ENGINE ---
+    // --- 3. MASKING ENGINE ---
     function maskText(text) {
         let cleanText = text;
         let masked = false;
 
-        // A. Private Blacklist (From Plugin)
-        PLUGIN_SECRETS.forEach(word => {
+        // A. Private Blacklist (Highest Priority)
+        privateSecrets.forEach(word => {
             if (word && cleanText.toLowerCase().includes(word.toLowerCase())) {
                 const regex = new RegExp(`\\b${word}\\b`, 'gi');
                 cleanText = cleanText.replace(regex, (match) => {
@@ -58,7 +59,7 @@
             }
         });
 
-        // B. NLP (Smart Detection)
+        // B. NLP (Smart Names)
         if (nlpReady && window.nlp) {
             const doc = window.nlp(cleanText);
             doc.people().forEach(p => {
@@ -77,7 +78,7 @@
             });
         }
 
-        // C. Regex Patterns
+        // C. Standard Patterns (Email/Card/ID)
         const STATIC_RULES = [
             { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, prefix: "Email" },
             { regex: /\b(?:\d[ -]*?){13,16}\b/g, prefix: "Card" },
@@ -94,13 +95,13 @@
         return { text: cleanText, wasMasked: masked };
     }
 
+    // --- 4. UNMASKING & UI ACTIONS ---
     function unmaskText(text) {
         let cleanText = text.replace(/ 🔒/g, ""); 
         const aliasPattern = /\[(Client|Company|Entity|Email|Card|ID|Redacted)_\d+\]/g;
         return cleanText.replace(aliasPattern, (match) => entityMap.has(match) ? entityMap.get(match) : match);
     }
 
-    // --- 5. UI ACTIONS ---
     function handleSend(textarea) {
         let result = maskText(textarea.value);
         if (result.wasMasked) {
@@ -139,6 +140,19 @@
         }
     }
 
+    // --- 5. PRIVATE SETTINGS MANAGER ---
+    function openSettings() {
+        const current = localStorage.getItem(STORAGE_KEY_SECRETS) || "";
+        const instructions = "🔒 PRIVATE BLACKLIST\nEnter words to always mask (comma separated).\nThese are saved ONLY on this computer.\n\nExample: Project Apollo, Operation X, John Smith";
+        const result = prompt(instructions, current);
+        
+        if (result !== null) {
+            localStorage.setItem(STORAGE_KEY_SECRETS, result);
+            privateSecrets = result.split(',').map(s => s.trim()).filter(s => s);
+            alert("✅ Private list updated!");
+        }
+    }
+
     // --- 6. HUD INTERFACE ---
     function initUI() {
         if (document.getElementById(OLD_CONTAINER_ID)) return;
@@ -155,25 +169,21 @@
         container.onmouseenter = () => container.style.opacity = "1";
         container.onmouseleave = () => container.style.opacity = "0.6";
 
+        // A. SHIELD (SEND)
         let btn = document.createElement('div');
         btn.innerHTML = `🛡️`;
         btn.title = "Secure Send";
         btn.style.cssText = `cursor: pointer; font-size: 18px;`;
-        btn.onmousedown = (e) => {
-            e.preventDefault(); 
-            let textarea = document.querySelector('textarea');
-            if (textarea) handleSend(textarea);
-        };
+        btn.onmousedown = (e) => { e.preventDefault(); let ta = document.querySelector('textarea'); if (ta) handleSend(ta); };
 
+        // B. REVEAL (VIEW)
         let revealBtn = document.createElement('div');
         revealBtn.innerHTML = `👁️`;
         revealBtn.title = "Reveal Page";
         revealBtn.style.cssText = `cursor: pointer; font-size: 18px; border-left: 1px solid #555; padding-left: 6px;`;
-        revealBtn.onmousedown = (e) => {
-            e.preventDefault();
-            revealAll();
-        };
+        revealBtn.onmousedown = (e) => { e.preventDefault(); revealAll(); };
 
+        // C. COPY (CLIPBOARD)
         let copyBtn = document.createElement('div');
         copyBtn.innerHTML = `📋`;
         copyBtn.title = "Copy Selection";
@@ -193,9 +203,17 @@
             }
         };
 
+        // D. SETTINGS (GEAR) - NEW!
+        let settingsBtn = document.createElement('div');
+        settingsBtn.innerHTML = `⚙️`;
+        settingsBtn.title = "Configure Private Blacklist";
+        settingsBtn.style.cssText = `cursor: pointer; font-size: 18px; border-left: 1px solid #555; padding-left: 6px;`;
+        settingsBtn.onmousedown = (e) => { e.preventDefault(); openSettings(); };
+
         container.appendChild(btn);
         container.appendChild(revealBtn);
         container.appendChild(copyBtn);
+        container.appendChild(settingsBtn);
         document.body.appendChild(container);
     }
     
