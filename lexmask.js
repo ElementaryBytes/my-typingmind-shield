@@ -1,6 +1,6 @@
-/* ⚖️ LexMask v9.1 (Input Unlock)
- * - Allows Copying UNMASKED text from the input box
- * - Retains Safety Lock & Quick-Add
+/* ⚖️ LexMask v9.3 (Source Swap & Force Unlock)
+ * - Switched AI Source to JSDelivr (More trusted)
+ * - Auto-unlocks after 2 seconds if download fails
  */
 
 (function() {
@@ -9,7 +9,7 @@
     const old = document.getElementById(CONTAINER_ID);
     if (old) old.remove();
 
-    console.log("⚖️ LexMask v9.1: Input Copy Unlocked");
+    console.log("⚖️ LexMask v9.3: Smart Loader Active");
 
     const STORAGE_KEY_MAP = "lexmask_entity_map"; 
     const STORAGE_KEY_SECRETS = "lexmask_secrets";
@@ -39,15 +39,44 @@
         return entityMap.get(key);
     }
 
-    // --- NLP ENGINE ---
+    // --- NLP ENGINE (With Timeout & New Source) ---
     let nlpReady = false;
+    let nlpFailed = false;
+
     function loadNLP() {
-        if (window.nlp) { nlpReady = true; updateUIReady(); return; }
+        if (window.nlp) { markReady(); return; }
+        
         const script = document.createElement('script');
         script.id = 'lexmask-nlp';
-        script.src = "https://unpkg.com/compromise@latest/builds/compromise.min.js"; 
-        script.onload = () => { nlpReady = true; updateUIReady(); };
+        // CHANGED: Switched to JSDelivr (Better reliability)
+        script.src = "https://cdn.jsdelivr.net/npm/compromise@latest/builds/compromise.min.js"; 
+        
+        script.onload = () => { 
+            console.log("✅ AI Brain Loaded via JSDelivr");
+            markReady(); 
+        };
+        
+        script.onerror = () => {
+            console.warn("⚠️ AI Download Blocked. Switching to Manual Mode.");
+            nlpFailed = true;
+            markReady(); // Unlock anyway
+        };
+
         document.head.appendChild(script);
+
+        // FAIL-SAFE: If not loaded in 2.5 seconds, Force Unlock
+        setTimeout(() => {
+            if (!nlpReady && !nlpFailed) {
+                console.log("⏰ AI Timed Out. Force Unlocking.");
+                nlpFailed = true;
+                markReady();
+            }
+        }, 2500);
+    }
+
+    function markReady() {
+        nlpReady = true;
+        updateUIReady();
     }
 
     // --- MASKING LOGIC ---
@@ -55,7 +84,7 @@
         let cleanText = text;
         let masked = false;
         
-        // 1. Private Secrets
+        // 1. Private Secrets (Always works)
         privateSecrets.forEach(word => {
             if (word && cleanText.toLowerCase().includes(word.toLowerCase())) {
                 const regex = new RegExp(`\\b${word}\\b`, 'gi');
@@ -63,18 +92,20 @@
             }
         });
 
-        // 2. NLP
-        if (nlpReady && window.nlp) {
-            const doc = window.nlp(cleanText);
-            doc.people().forEach(p => {
-                if (p.text().length > 2) { cleanText = cleanText.replace(new RegExp(`\\b${p.text()}\\b`, 'g'), getAlias(p.text(), "Client")); masked = true; }
-            });
-            doc.organizations().forEach(o => {
-                if (o.text().length > 2) { cleanText = cleanText.replace(new RegExp(`\\b${o.text()}\\b`, 'g'), getAlias(o.text(), "Company")); masked = true; }
-            });
+        // 2. NLP (Only if loaded successfully)
+        if (!nlpFailed && window.nlp) {
+            try {
+                const doc = window.nlp(cleanText);
+                doc.people().forEach(p => {
+                    if (p.text().length > 2) { cleanText = cleanText.replace(new RegExp(`\\b${p.text()}\\b`, 'g'), getAlias(p.text(), "Client")); masked = true; }
+                });
+                doc.organizations().forEach(o => {
+                    if (o.text().length > 2) { cleanText = cleanText.replace(new RegExp(`\\b${o.text()}\\b`, 'g'), getAlias(o.text(), "Company")); masked = true; }
+                });
+            } catch (e) { console.error(e); }
         }
 
-        // 3. Regex
+        // 3. Regex (Always works)
         const STATIC_RULES = [
             { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, prefix: "Email" },
             { regex: /\b(?:\d[ -]*?){13,16}\b/g, prefix: "Card" },
@@ -93,7 +124,12 @@
 
     // --- ACTIONS ---
     function handleSend(textarea) {
-        if (!nlpReady) { alert("⏳ Initializing AI... Wait 1s."); return; }
+        // FAIL-SAFE: If for some reason it's still stuck, just force allow it
+        if (!nlpReady) { 
+            let force = confirm("⚠️ AI Brain is still loading. Send anyway using only your private list?");
+            if (!force) return;
+        }
+
         let result = maskText(textarea.value);
         if (result.wasMasked) {
             let setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
@@ -158,9 +194,10 @@
     function updateUIReady() {
         const shield = document.getElementById('lexmask-shield-btn');
         if (shield) {
-            shield.style.color = "#4caf50"; 
-            shield.style.textShadow = "0 0 5px #4caf50";
-            setTimeout(() => shield.style.textShadow = "none", 1000); 
+            // GREEN = AI Working
+            // ORANGE = AI Failed (But manual list works)
+            shield.style.color = nlpFailed ? "#ff9800" : "#4caf50"; 
+            shield.style.textShadow = nlpFailed ? "none" : "0 0 5px #4caf50";
         }
     }
 
@@ -197,43 +234,31 @@
             return b;
         };
 
-        // 1. SHIELD
-        container.appendChild(createBtn("🛡️", "Secure Send (Shift+Click to Add Secret)", () => {
+        container.appendChild(createBtn("🛡️", "Secure Send", () => {
             let ta = document.querySelector('textarea');
             if(ta) handleSend(ta);
         }, 'lexmask-shield-btn'));
         
-        // 2. REVEAL
         container.appendChild(createBtn("👁️", "Reveal", revealAll));
         
-        // 3. COPY (Now Unlocks Input!)
         container.appendChild(createBtn("📋", "Copy", async () => {
              let textToProcess = "";
              let sel = window.getSelection().toString();
-
-             // PRIORITY 1: Use Selected text (Even if inside Input Box!)
              if (sel) {
                  textToProcess = sel;
-             } 
-             // PRIORITY 2: Use Last AI Message
-             else {
+             } else {
                  let messages = document.querySelectorAll('[data-element-id="ai-message"]');
                  if (messages.length > 0) textToProcess = messages[messages.length - 1].innerText;
              }
-
              if (textToProcess) {
-                // Decrypt it before copying
                 let clean = unmaskText(textToProcess);
                 await navigator.clipboard.writeText(clean);
-                
-                // Visual Feedback
                 let original = container.style.backgroundColor;
                 container.style.backgroundColor = "green";
                 setTimeout(() => container.style.backgroundColor = original, 500);
              }
         }));
 
-        // 4. SETTINGS
         container.appendChild(createBtn("⚙️", "Settings", openSettings));
         
         document.body.appendChild(container);
