@@ -1,4 +1,4 @@
-# ⚖️ LexMask Local
+# ⚖️ LexMask Local (Stealth Edition)
 
 **A client-side privacy shield for TypingMind.**
 
@@ -8,33 +8,39 @@ It runs 100% in your browser. No proxies, no external servers, and no data leaks
 
 ## 🚀 Features
 
-* **🛡️ Client-Side Redaction:** Sensitive data is masked locally (e.g., `John Doe` → `[Client_1]`) before the request leaves your computer.
-* **🧠 Hybrid Engine:** Uses **Compromise.js** (NLP) for smart entity detection and Regex for strict patterns (Emails, IDs, Cards).
-* **📋 Precision Decryption:** One-click copy button to restore original names when copying AI responses.
-* **⚡ Zero Latency:** No server round-trips required.
+* **🛡️ Smart Redaction:** Uses an embedded NLP engine (Compromise.js) to automatically detect names, companies, and locations.
+* **🔒 Private Blacklist:** Add your own secret words (e.g., project codes) via the Settings menu. These are stored locally on your device and never uploaded.
+* **📱 Stealth Mode:** The UI is a transparent, edge-hugging sidebar designed to never block your screen on mobile or desktop.
+* **📋 Secure Decryption:** One-click copy button to restore original names when copying AI responses.
 
-## 🛠️ Installation in TypingMind
+## 🛠️ Installation
 
-1.  Open **TypingMind** settings.
-2.  Navigate to **Extension** > **Web Extension**.
-3.  Create a new extension and paste the code from `lexmask.js`.
-4.  Save and refresh. You will see the 🛡️ Shield icon in the bottom right.
+1.  Open **TypingMind**.
+2.  Go to **Settings** > **Extensions**.
+3.  Click **Install Extension**.
+4.  Paste the following URL:
+    ```text
+    [https://ElementaryBytes.github.io/LexMask-Local/lexmask.js](https://ElementaryBytes.github.io/LexMask-Local/lexmask.js)
+    ```
+5.  Click **Install** and refresh the page.
 
-## 💡 How it Works
+## 💡 How to Use
 
-1.  **Type:** "Draft a contract for John Smith regarding the merger with Acme Corp."
-2.  **Click Shield (🛡️):** The script intercepts the text.
-3.  **AI Receives:** "Draft a contract for [Client_1] regarding the merger with [Company_1]."
-4.  **AI Responds:** "Here is the contract for [Client_1]..."
-5.  **You See:** "Here is the contract for John Smith 🔒..." (Auto-decoded locally).
+Look for the transparent sidebar on the **middle-right edge** of your screen. Hover over it (or tap on mobile) to wake it up.
+
+| Icon | Function |
+| :--- | :--- |
+| **🛡️** | **Secure Send:** Masks your input (e.g., `John Doe` → `[Client_1]`) and sends it to the AI. |
+| **👁️** | **Reveal:** Unmasks the current page so you can read the AI's response naturally. |
+| **📋** | **Copy:** Copies the selected text (or the last AI message) to your clipboard with all real names restored. |
+| **⚙️** | **Settings:** Add custom words to your private blacklist (comma-separated). |
 
 ## 🔒 Privacy Note
 
-This tool is designed to assist with data minimization. It runs entirely on the client side using your browser's local storage to map aliases. 
-* No data is sent to the developers of LexMask.
-* Persistence is handled via `localStorage` on your device.
+* **Client-Side Only:** All masking happens in your browser memory.
+* **Local Storage:** Your "Entity Map" (which matches `[Client_1]` to `John Doe`) is stored in your browser's `localStorage` and is never transmitted.
+* **Zero Logs:** This extension has no analytics or tracking.
 
 ## 📄 License
 
 MIT License. Free for personal and professional use.
-
